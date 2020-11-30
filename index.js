@@ -1,4 +1,7 @@
-const debug = require("debug")("presence"),
+process.title = process.env.TITLE || "presence-microservice";
+// process.env.DEBUG = "PresenceHost,HostBase";
+
+const debug = require("debug")("PresenceHost"),
   console = require("console"),
   superagent = require("superagent"),
   HostBase = require("microservice-core/HostBase");
@@ -18,10 +21,19 @@ class Presence extends HostBase {
 
     this.state = {};
 
+    console.log(
+      "construct",
+      this.person,
+      this.device,
+      TOPIC_ROOT + "/" + presence.person
+    );
     this.poll();
   }
 
   async poll() {
+    const s = {},
+      device = this.device;
+
     for (;;) {
       try {
         const result = await superagent
@@ -29,11 +41,19 @@ class Presence extends HostBase {
           .timeout(TIMEOUT);
         console.log("result", result);
       } catch (e) {
-        console.log(this.device, e.code);
+        // console.log(this.device, e.code);
         if (e.code === "ECONNREFUSED") {
-          console.log(this.person, "PRESENT!");
+          if (this.state.person !== true) {
+            debug(this.device, this.person, "PRESENT!");
+          }
+          s[device] = true;
+          this.state = s;
         } else {
-          console.log(this.person, "AWAY!");
+          if (this.state.person !== false) {
+            debug(this.device, this.person, "AWAY!");
+          }
+          s[device] = false;
+          this.state = s;
         }
       }
       await this.wait(POLL_TIME);
@@ -48,12 +68,6 @@ const main = async () => {
   for (const presence of Config.presence) {
     people[presence.device] = new Presence(presence);
   }
-  // try {
-  //   const result = await superagent.get("http://mike-iphone12");
-  //   console.log("result", result.code);
-  // } catch (e) {
-  //   console.log(e.code);
-  // }
 };
 
 main();
